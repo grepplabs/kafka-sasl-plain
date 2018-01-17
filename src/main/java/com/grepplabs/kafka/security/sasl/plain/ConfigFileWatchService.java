@@ -21,8 +21,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.security.auth.login.Configuration;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ConfigFileWatchService implements ConfigFileChangeListener {
@@ -30,7 +32,7 @@ public class ConfigFileWatchService implements ConfigFileChangeListener {
 
     private final AtomicReference<Thread> watcherThread = new AtomicReference<>();
 
-    private Set<ConfigFileChangeListener> listeners = new CopyOnWriteArraySet<>();
+    private final Map<ConfigFileChangeListener, Boolean> listeners = Collections.synchronizedMap(new WeakHashMap<ConfigFileChangeListener, Boolean>());
 
     public void startWatcher() {
         Thread thread = watcherThread.get();
@@ -72,17 +74,25 @@ public class ConfigFileWatchService implements ConfigFileChangeListener {
     }
 
     public void addListener(ConfigFileChangeListener listener) {
-        this.listeners.add(listener);
+        this.listeners.put(listener, Boolean.TRUE);
     }
 
     public void removeListener(ConfigFileChangeListener listener) {
         this.listeners.remove(listener);
     }
 
+    /** See also {@link java.util.Collections#synchronizedMap}. */
     private void notifyChangeListeners() {
-        log.info("Notify {} listeners ", listeners.size());
-        for (final ConfigFileChangeListener listener:  listeners) {
-            listener.configFileChanged();
+        Set<ConfigFileChangeListener> keys = listeners.keySet();
+        synchronized (listeners) {
+            log.info("Notify {} listeners ", keys.size());
+            for (ConfigFileChangeListener key : keys) {
+                key.configFileChanged();
+            }
         }
+    }
+
+    int getListenersCount() {
+        return listeners.size();
     }
 }

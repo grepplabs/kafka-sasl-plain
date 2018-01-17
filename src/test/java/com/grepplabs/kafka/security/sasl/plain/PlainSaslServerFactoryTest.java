@@ -21,11 +21,13 @@ import org.apache.kafka.common.network.ListenerName;
 import org.apache.kafka.common.security.JaasContext;
 import org.apache.kafka.common.security.authenticator.SaslServerCallbackHandler;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import javax.security.auth.login.AppConfigurationEntry;
 import javax.security.sasl.SaslException;
 import javax.security.sasl.SaslServer;
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,7 +41,7 @@ public class PlainSaslServerFactoryTest extends AbstractJaasContextTest {
 
     @Test
     public void testReloadConfig() throws Exception {
-
+        final int listenersCount = PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount();
         final Map<String, Object> options = new HashMap<>();
         options.put("username", "\"admin\"");
         options.put("password", "\"admin123456\"");
@@ -50,6 +52,7 @@ public class PlainSaslServerFactoryTest extends AbstractJaasContextTest {
         PlainSaslServer.PlainSaslServerFactory factory = new PlainSaslServer.PlainSaslServerFactory();
         JaasContext jaasContext = JaasContext.load(JaasContext.Type.SERVER, new ListenerName("my-listener"), Collections.<String, Object>emptyMap());
         final SaslServer server = factory.createSaslServer(PlainSaslServer.PLAIN_MECHANISM, "SASL_SSL", "my-broker", Collections.<String, Object>emptyMap(), new SaslServerCallbackHandler(jaasContext, null));
+        Assert.assertEquals(listenersCount + 1, PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount());
         server.evaluateResponse(saslMessage("alice", "alice", "pass12345"));
 
         try {
@@ -73,11 +76,13 @@ public class PlainSaslServerFactoryTest extends AbstractJaasContextTest {
         });
 
         server.dispose();
+        Assert.assertEquals(listenersCount, PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount());
         PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.stopWatcher();
     }
 
     @Test
     public void testReloadOldConfigWithKafkaModuleName() throws Exception {
+        final int listenersCount = PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount();
         final Map<String, Object> options = new HashMap<>();
         options.put("username", "\"admin\"");
         options.put("password", "\"admin123456\"");
@@ -89,6 +94,7 @@ public class PlainSaslServerFactoryTest extends AbstractJaasContextTest {
         PlainSaslServer.PlainSaslServerFactory factory = new PlainSaslServer.PlainSaslServerFactory();
         JaasContext jaasContext = JaasContext.load(JaasContext.Type.SERVER, new ListenerName("my-listener"), Collections.<String, Object>emptyMap());
         final SaslServer server = factory.createSaslServer(PlainSaslServer.PLAIN_MECHANISM, "SASL_SSL", "my-broker", Collections.<String, Object>emptyMap(), new SaslServerCallbackHandler(jaasContext, null));
+        Assert.assertEquals(listenersCount + 1, PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount());
         server.evaluateResponse(saslMessage("alice", "alice", "pass12345"));
 
         options.remove("user_bob");
@@ -108,6 +114,7 @@ public class PlainSaslServerFactoryTest extends AbstractJaasContextTest {
         server.evaluateResponse(saslMessage("alice", "alice", "pass12345"));
 
         server.dispose();
+        Assert.assertEquals(listenersCount, PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount());
         PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.stopWatcher();
     }
 
@@ -121,5 +128,45 @@ public class PlainSaslServerFactoryTest extends AbstractJaasContextTest {
         String nul = "\u0000";
         String message = String.format("%s%s%s%s%s", authorizationId, nul, userName, nul, password);
         return message.getBytes(StandardCharsets.UTF_8);
+    }
+
+
+    @Test
+    @Ignore("Can have non deterministic behavior due to calling the System.gc")
+    @SuppressWarnings("all")
+    public void testWeakKey() throws Exception {
+        final int listenersCount = PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount();
+
+        final Map<String, Object> options = new HashMap<>();
+        options.put("username", "\"admin\"");
+        options.put("password", "\"admin123456\"");
+        writeStaticConfiguration(PlainLoginModule.class.getName(), AppConfigurationEntry.LoginModuleControlFlag.REQUISITE, options);
+
+        PlainSaslServer.PlainSaslServerFactory factory = new PlainSaslServer.PlainSaslServerFactory();
+        JaasContext jaasContext = JaasContext.load(JaasContext.Type.SERVER, new ListenerName("my-listener"), Collections.<String, Object>emptyMap());
+        SaslServer server = factory.createSaslServer(PlainSaslServer.PLAIN_MECHANISM, "SASL_SSL", "my-broker", Collections.<String, Object>emptyMap(), new SaslServerCallbackHandler(jaasContext, null));
+        Assert.assertEquals(listenersCount + 1, PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount());
+
+        // release reference without calling despose
+        server = null;
+
+        await().atMost(6, TimeUnit.SECONDS).pollInterval(500, TimeUnit.MILLISECONDS). until(new Callable<Boolean>() {
+            @Override
+            public Boolean call() {
+                gc();
+                return listenersCount == PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.getListenersCount();
+            }
+        });
+        PlainSaslServer.CONFIG_FILE_WATCH_SERVICE.stopWatcher();
+
+    }
+
+    private static void gc() {
+        Object obj = new Object();
+        WeakReference ref = new WeakReference<>(obj);
+        obj = null;
+        while (ref.get() != null) {
+            System.gc();
+        }
     }
 }
