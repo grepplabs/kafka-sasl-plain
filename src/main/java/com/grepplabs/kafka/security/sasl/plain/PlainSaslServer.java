@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * server implementation.
  * <p>
  * Valid users with passwords are specified in the Jaas configuration file. Each user
- * is specified with user_<username> as key and <password> as value. This is consistent
+ * is specified with user &lt;username&gt; as key and &lt;password&gt; as value. This is consistent
  * with Zookeeper Digest-MD5 implementation.
  * <p>
  * To avoid storing clear passwords on disk or to integrate with external authentication
