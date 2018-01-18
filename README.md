@@ -9,6 +9,29 @@ which watches and reloads JAAS configuration file.
 
 ## Usage
 
+### Maven build dependencies
+
+```xml
+<dependency>
+  <groupId>com.github.grepplabs</groupId>
+  <artifactId>kafka-sasl-plain</artifactId>
+  <version>see above</version>
+</dependency>
+```
+
+### Kafka server  
+
+* download jar
+
+```bash
+mvn dependency:get \
+  -Dartifact=com.github.grepplabs:kafka-sasl-plain:1.0.0:jar \
+  -Dtransitive=false \
+  -Ddest="kafka-sasl-plain-1.0.0.jar"
+```
+* add jar to broker CLASSPATH by coping it to Kafka `libs` directory
+* modify JAAS configuration 
+
 kafka_server_jaas.conf:
 
 ```
