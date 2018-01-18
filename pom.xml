@@ -4,7 +4,7 @@
 
     <groupId>com.github.grepplabs</groupId>
     <artifactId>kafka-sasl-plain</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>kafka-sasl-plain</name>
@@ -29,7 +29,7 @@
         <connection>scm:git:git://github.com/grepplabs/kafka-sasl-plain.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/grepplabs/kafka-sasl-plain.git</developerConnection>
         <url>http://github.com/grepplabs/kafka-sasl-plain/tree/master</url>
-      <tag>v1.0.0</tag>
+      <tag>HEAD</tag>
   </scm>
 
     <issueManagement>
